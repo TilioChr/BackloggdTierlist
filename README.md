@@ -16,7 +16,7 @@ Le projet fonctionne en deux étapes :
     "title": "...",
     "cover_url": "..."
   }
-- Placer ce fichier JSON dans le même dossier que `index.html`.
+- Placer ce fichier JSON dans le même dossier que `index.html`. (Remplace le placeholder actuelle)
 
 ### 2. Générateur de tierlist (index.html)
 - Ouvrir la page HTML en double-cliquant sur le fichier.
