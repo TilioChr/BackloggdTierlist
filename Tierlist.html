@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Tierlist Backloggd</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        background: #111;
+        color: #eee;
+      }
+
+      header {
+        padding: 16px 24px;
+        background: #181818;
+        border-bottom: 1px solid #333;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      h1 {
+        font-size: 20px;
+        margin: 0;
+      }
+
+      .subtitle {
+        font-size: 12px;
+        color: #aaa;
+      }
+
+      .header-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      button {
+        background: #ff4b4b;
+        border: none;
+        color: white;
+        padding: 8px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      button.secondary {
+        background: #444;
+      }
+
+      button:hover {
+        filter: brightness(1.1);
+      }
+
+      main {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .tier-row {
+        display: grid;
+        grid-template-columns: 90px 1fr;
+        min-height: 90px;
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid #333;
+      }
+
+      .tier-row.dragging {
+        opacity: 0.7;
+      }
+
+      .tier-label {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        font-weight: 900;
+        font-size: 22px;
+        color: #111;
+        padding: 4px;
+        gap: 4px;
+        cursor: grab;
+      }
+
+      .tier-label-inner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+      }
+
+      .tier-label-text {
+        cursor: default;
+      }
+
+      .tier-content {
+        background: #1e1e1e;
+        padding: 6px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        min-height: 90px;
+      }
+
+      .tier-content.drag-over {
+        outline: 2px dashed #fff;
+        outline-offset: -4px;
+      }
+
+      .game-card {
+        width: 80px;
+        flex: 0 0 auto;
+        background: #222;
+        border-radius: 4px;
+        overflow: hidden;
+        border: 1px solid #444;
+        cursor: grab;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        user-select: none;
+      }
+
+      .game-card img {
+        width: 100%;
+        display: block;
+      }
+
+      .game-title {
+        font-size: 10px;
+        padding: 2px 3px 4px;
+        text-align: center;
+        color: #ddd;
+        max-height: 32px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .info {
+        font-size: 12px;
+        color: #aaa;
+        margin-top: 8px;
+      }
+
+      /* Menu "3 points" */
+      .tier-menu-trigger {
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        border: none;
+        background: rgba(0, 0, 0, 0);
+        color: #111;
+        font-size: 16px;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+      }
+
+      .tier-menu-trigger:hover {
+        background: rgba(0, 0, 0, 0.15);
+      }
+
+      .tier-menu {
+        position: absolute;
+        top: 4px;
+        left: 30px;
+        background: #222;
+        border-radius: 6px;
+        border: 1px solid #444;
+        padding: 4px;
+        display: none;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 110px;
+      }
+
+      .tier-menu.open {
+        display: flex;
+      }
+
+      .tier-menu-item {
+        background: transparent;
+        border: none;
+        color: #eee;
+        text-align: left;
+        padding: 4px 6px;
+        font-size: 12px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+
+      .tier-menu-item:hover {
+        background: #444;
+      }
+
+      @media (max-width: 800px) {
+        .tier-row {
+          grid-template-columns: 70px 1fr;
+        }
+        .tier-label {
+          font-size: 18px;
+        }
+        .game-card {
+          width: 64px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Tierlist Backloggd</h1>
+        <div class="subtitle">
+          Drag & drop les jaquettes dans les rangs, réorganise les catégories,
+          exporte en JSON ou en PNG.
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="addTierBtn" class="secondary">Ajouter une catégorie</button>
+
+        <input
+          type="file"
+          id="importInput"
+          accept="application/json"
+          style="display: none;"
+        />
+        <button id="importBtn" class="secondary">Importer une tierlist</button>
+        <button id="exportPngBtn" class="secondary">Exporter en PNG</button>
+        <button id="exportBtn">Exporter la tierlist (JSON)</button>
+      </div>
+    </header>
+
+    <main>
+      <div id="tiers"></div>
+      <div class="info">
+        <p>
+          Note : Assure-toi que les fichiers JSON listés dans le script sont
+          présents dans le même répertoire que cette page pour que les jaquettes
+          se chargent correctement. (Attention aux noms de fichiers !)
+        </p>
+      </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+    <script>
+      const JSON_FILES = [
+        "backloggd_played_covers.json",
+        "backloggd_played_covers (1).json",
+        "backloggd_played_covers (2).json",
+        "backloggd_played_covers (3).json",
+        "backloggd_played_covers (4).json",
+        "backloggd_played_covers (5).json",
+        "backloggd_played_covers (6).json",
+        "backloggd_played_covers (7).json",
+        "backloggd_played_covers (8).json",
+        "backloggd_played_covers (9).json",
+        "backloggd_played_covers (10).json",
+        "backloggd_played_covers (11).json",
+        "backloggd_played_covers (12).json",
+        "backloggd_played_covers (13).json",
+        "backloggd_played_covers (14).json",
+        "backloggd_played_covers (15).json",
+        "backloggd_played_covers (16).json",
+        "backloggd_played_covers (17).json",
+        "backloggd_played_covers (18).json",
+        "backloggd_played_covers (19).json",
+        "backloggd_played_covers (20).json",
+        "backloggd_played_covers (21).json",
+        "backloggd_played_covers (22).json",
+        "backloggd_played_covers (23).json",
+        "backloggd_played_covers (24).json",
+        "backloggd_played_covers (25).json",
+        "backloggd_played_covers (26).json",
+        "backloggd_played_covers (27).json",
+        "backloggd_played_covers (28).json",
+        "backloggd_played_covers (29).json",
+        "backloggd_played_covers (30).json",
+      ];
+
+      const DEFAULT_TIERS = [
+        { id: "S", label: "S", color: "#ff7f7f" },
+        { id: "A", label: "A", color: "#ffbf7f" },
+        { id: "B", label: "B", color: "#ffdf7f" },
+        { id: "C", label: "C", color: "#bfff7f" },
+        { id: "D", label: "D", color: "#7fffff" },
+        { id: "F", label: "F", color: "#bfbfbf" },
+        { id: "UNRANKED", label: "?", color: "#888", isUnranked: true },
+      ];
+
+      const tiersContainer = document.getElementById("tiers");
+      const tiersById = {};
+      let unrankedTier = null;
+      let gameIdCounter = 0;
+      let draggedCard = null;
+      let draggedTierRow = null;
+
+      // --------- DRAG & DROP CARTES ---------
+      function handleDragStartCard(e) {
+        draggedCard = this;
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", this.dataset.id);
+      }
+
+      function handleDragOverCardZone(e) {
+        e.preventDefault();
+        this.classList.add("drag-over");
+        e.dataTransfer.dropEffect = "move";
+      }
+
+      function handleDragLeaveCardZone() {
+        this.classList.remove("drag-over");
+      }
+
+      function handleDropCard(e) {
+        e.preventDefault();
+        this.classList.remove("drag-over");
+        if (!draggedCard) return;
+        this.appendChild(draggedCard);
+      }
+
+      function attachDropEvents(zone) {
+        zone.addEventListener("dragover", handleDragOverCardZone);
+        zone.addEventListener("dragleave", handleDragLeaveCardZone);
+        zone.addEventListener("drop", handleDropCard);
+      }
+
+      function createGameCard(game) {
+        const card = document.createElement("div");
+        card.className = "game-card";
+        card.draggable = true;
+        card.dataset.id = "game-" + gameIdCounter++;
+        card.dataset.title = game.title;
+        card.dataset.coverUrl = game.cover_url;
+
+        const img = document.createElement("img");
+        img.src = game.cover_url;
+        img.alt = game.title;
+        img.crossOrigin = "anonymous";
+
+        const title = document.createElement("div");
+        title.className = "game-title";
+        title.textContent = game.title;
+
+        card.appendChild(img);
+        card.appendChild(title);
+
+        card.addEventListener("dragstart", handleDragStartCard);
+
+        return card;
+      }
+
+      // --------- DRAG & DROP DES CATÉGORIES (ROWS) ---------
+      function handleTierRowDragStart(e) {
+        if (this.classList.contains("unranked-row")) {
+          e.preventDefault();
+          return;
+        }
+        draggedTierRow = this;
+        this.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", "tier-row");
+      }
+
+      function handleTierRowDragEnd() {
+        if (draggedTierRow) {
+          draggedTierRow.classList.remove("dragging");
+        }
+        draggedTierRow = null;
+      }
+
+      function handleTierRowDragOver(e) {
+        e.preventDefault();
+        if (!draggedTierRow) return;
+        if (this === draggedTierRow) return;
+        if (this.classList.contains("unranked-row")) return;
+
+        const rect = this.getBoundingClientRect();
+        const offset = e.clientY - rect.top;
+        const before = offset < rect.height / 2;
+
+        if (before) {
+          tiersContainer.insertBefore(draggedTierRow, this);
+        } else {
+          const next = this.nextSibling;
+          if (next && next !== unrankedTier.rowEl) {
+            tiersContainer.insertBefore(draggedTierRow, next);
+          } else {
+            tiersContainer.insertBefore(draggedTierRow, unrankedTier.rowEl);
+          }
+        }
+      }
+
+      function attachTierRowDragEvents(row, isUnranked) {
+        if (isUnranked) {
+          row.draggable = false;
+          return;
+        }
+        row.draggable = true;
+        row.addEventListener("dragstart", handleTierRowDragStart);
+        row.addEventListener("dragend", handleTierRowDragEnd);
+        row.addEventListener("dragover", handleTierRowDragOver);
+      }
+
+      // --------- GESTION MENU "3 POINTS" ---------
+      function closeAllTierMenus() {
+        document.querySelectorAll(".tier-menu").forEach((menu) => {
+          menu.classList.remove("open");
+        });
+      }
+
+      document.addEventListener("click", (e) => {
+        // si clic à l'extérieur d'un label, on ferme les menus
+        if (!e.target.closest(".tier-label")) {
+          closeAllTierMenus();
+        }
+      });
+
+      // --------- CRÉATION / GESTION DES RANGS ---------
+      function createTierRow({ id, label, color, isUnranked = false }) {
+        if (tiersById[id]) return tiersById[id];
+
+        const row = document.createElement("div");
+        row.className = "tier-row";
+        if (isUnranked) row.classList.add("unranked-row");
+
+        const labelDiv = document.createElement("div");
+        labelDiv.className = "tier-label";
+        labelDiv.style.background = color;
+
+        // Bouton "3 points"
+        const menuTrigger = document.createElement("button");
+        menuTrigger.className = "tier-menu-trigger";
+        menuTrigger.type = "button";
+        menuTrigger.textContent = "⋮";
+
+        const menu = document.createElement("div");
+        menu.className = "tier-menu";
+
+        const renameBtn = document.createElement("button");
+        renameBtn.type = "button";
+        renameBtn.className = "tier-menu-item";
+        renameBtn.textContent = "Renommer";
+
+        const colorBtn = document.createElement("button");
+        colorBtn.type = "button";
+        colorBtn.className = "tier-menu-item";
+        colorBtn.textContent = "Couleur";
+
+        menu.appendChild(renameBtn);
+        menu.appendChild(colorBtn);
+
+        let deleteBtn = null;
+        if (!isUnranked) {
+          deleteBtn = document.createElement("button");
+          deleteBtn.type = "button";
+          deleteBtn.className = "tier-menu-item";
+          deleteBtn.textContent = "Supprimer";
+          menu.appendChild(deleteBtn);
+        }
+
+        const inner = document.createElement("div");
+        inner.className = "tier-label-inner";
+
+        const labelText = document.createElement("span");
+        labelText.className = "tier-label-text";
+        labelText.textContent = label;
+
+        inner.appendChild(labelText);
+
+        // input couleur caché
+        const colorInput = document.createElement("input");
+        colorInput.type = "color";
+        colorInput.value = color;
+        colorInput.style.display = "none";
+
+        labelDiv.appendChild(menuTrigger);
+        labelDiv.appendChild(menu);
+        labelDiv.appendChild(inner);
+        labelDiv.appendChild(colorInput);
+
+        const content = document.createElement("div");
+        content.className = "tier-content";
+        content.dataset.tierId = id;
+
+        row.appendChild(labelDiv);
+        row.appendChild(content);
+
+        if (isUnranked || !unrankedTier) {
+          tiersContainer.appendChild(row);
+        } else {
+          tiersContainer.insertBefore(row, unrankedTier.rowEl);
+        }
+
+        attachDropEvents(content);
+        attachTierRowDragEvents(row, isUnranked);
+
+        const tierObj = {
+          id,
+          label,
+          color,
+          isUnranked,
+          rowEl: row,
+          labelEl: labelDiv,
+          labelTextEl: labelText,
+          colorInputEl: colorInput,
+          menuEl: menu,
+          menuTriggerEl: menuTrigger,
+          deleteBtnEl: deleteBtn,
+          contentEl: content,
+        };
+
+        tiersById[id] = tierObj;
+        if (isUnranked) unrankedTier = tierObj;
+
+        // Menu interactions
+        menuTrigger.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const isOpen = menu.classList.contains("open");
+          closeAllTierMenus();
+          if (!isOpen) {
+            menu.classList.add("open");
+          }
+        });
+
+        menu.addEventListener("click", (e) => {
+          e.stopPropagation();
+        });
+
+        // Renommer
+        renameBtn.addEventListener("click", () => {
+          const newName = prompt("Nouveau nom de catégorie :", tierObj.label);
+          if (!newName || !newName.trim()) return;
+
+          const trimmed = newName.trim();
+          const oldId = tierObj.id;
+
+          if (tiersById[trimmed] && trimmed !== oldId) {
+            alert("Une catégorie avec ce nom existe déjà.");
+            return;
+          }
+
+          delete tiersById[oldId];
+          tierObj.id = trimmed;
+          tierObj.label = trimmed;
+          tierObj.labelTextEl.textContent = trimmed;
+          tierObj.contentEl.dataset.tierId = trimmed;
+          tiersById[trimmed] = tierObj;
+
+          closeAllTierMenus();
+        });
+
+        // Couleur
+        colorBtn.addEventListener("click", () => {
+          colorInput.click();
+        });
+
+        colorInput.addEventListener("input", () => {
+          tierObj.color = colorInput.value;
+          tierObj.labelEl.style.background = colorInput.value;
+        });
+
+        // Supprimer (si pas UNRANKED)
+        if (deleteBtn) {
+          deleteBtn.addEventListener("click", () => {
+            if (
+              !confirm(
+                "Supprimer cette catégorie ? Les jeux qu'elle contient seront déplacés dans la catégorie non classée (?)."
+              )
+            )
+              return;
+
+            if (!unrankedTier) {
+              alert("Pas de catégorie 'non classée' trouvée.");
+              return;
+            }
+
+            const cards = Array.from(tierObj.contentEl.children);
+            cards.forEach((card) => unrankedTier.contentEl.appendChild(card));
+
+            row.remove();
+            delete tiersById[tierObj.id];
+          });
+        }
+
+        return tierObj;
+      }
+
+      // Création des rangs de base
+      DEFAULT_TIERS.forEach((t) => createTierRow(t));
+
+      // --------- CHARGEMENT DES JEUX INITIAUX ---------
+      async function loadAllGames() {
+        const allGames = [];
+
+        for (const file of JSON_FILES) {
+          try {
+            const res = await fetch(file);
+            if (!res.ok) {
+              console.warn("Impossible de charger", file, res.status);
+              continue;
+            }
+            const data = await res.json();
+            allGames.push(...data);
+          } catch (err) {
+            console.error("Erreur en lisant", file, err);
+          }
+        }
+
+        console.log("Total jeux chargés :", allGames.length);
+        if (!unrankedTier) {
+          console.error("Pas de catégorie UNRANKED définie.");
+          return;
+        }
+
+        allGames.forEach((game) => {
+          const card = createGameCard(game);
+          unrankedTier.contentEl.appendChild(card);
+        });
+      }
+
+      loadAllGames();
+
+      // --------- EXPORT JSON ---------
+      document.getElementById("exportBtn").addEventListener("click", () => {
+        const result = {};
+
+        document.querySelectorAll(".tier-content").forEach((zone) => {
+          const tierId = zone.dataset.tierId;
+          result[tierId] = [];
+          zone.querySelectorAll(".game-card").forEach((card) => {
+            result[tierId].push({
+              title: card.dataset.title,
+              cover_url: card.dataset.coverUrl,
+            });
+          });
+        });
+
+        const blob = new Blob([JSON.stringify(result, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "tierlist_tiliochr.json";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      });
+
+      // --------- IMPORT JSON ---------
+      const importInput = document.getElementById("importInput");
+      const importBtn = document.getElementById("importBtn");
+
+      importBtn.addEventListener("click", () => {
+        importInput.value = "";
+        importInput.click();
+      });
+
+      importInput.addEventListener("change", (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = JSON.parse(e.target.result);
+            applyImportedTierlist(data);
+          } catch (err) {
+            console.error(err);
+            alert("Fichier JSON invalide.");
+          }
+        };
+        reader.readAsText(file);
+      });
+
+      function applyImportedTierlist(tierData) {
+        Object.keys(tierData).forEach((id) => {
+          const isUnranked = id === "UNRANKED";
+          if (!tiersById[id]) {
+            createTierRow({
+              id,
+              label: isUnranked ? "?" : id,
+              color: isUnranked ? "#888" : "#ffdf7f",
+              isUnranked,
+            });
+          }
+        });
+
+        Object.values(tiersById).forEach((tier) => {
+          tier.contentEl.innerHTML = "";
+        });
+
+        Object.entries(tierData).forEach(([id, games]) => {
+          const tier = tiersById[id];
+          if (!tier) return;
+          games.forEach((game) => {
+            const card = createGameCard(game);
+            tier.contentEl.appendChild(card);
+          });
+        });
+
+        console.log("Tierlist importée ✅");
+      }
+
+      // --------- AJOUT D'UNE CATÉGORIE ---------
+      document.getElementById("addTierBtn").addEventListener("click", () => {
+        const name = prompt("Nom de la nouvelle catégorie :", "Nouvelle cat");
+        if (!name || !name.trim()) return;
+
+        const id = name.trim();
+        if (tiersById[id]) {
+          alert("Une catégorie avec ce nom existe déjà.");
+          return;
+        }
+
+        const randomColor =
+          "#" +
+          Math.floor(Math.random() * 0xffffff)
+            .toString(16)
+            .padStart(6, "0");
+
+        createTierRow({ id, label: id, color: randomColor });
+      });
+
+      // --------- EXPORT PNG (UNRANKED caché) ---------
+      async function exportTierlistAsPng() {
+        const container = document.getElementById("tiers");
+        if (!container) return;
+
+        const previousScrollY = window.scrollY;
+        window.scrollTo(0, 0);
+
+        // Cacher la ligne UNRANKED
+        let unrankedPrevDisplay = null;
+        if (unrankedTier && unrankedTier.rowEl) {
+          unrankedPrevDisplay = unrankedTier.rowEl.style.display;
+          unrankedTier.rowEl.style.display = "none";
+        }
+
+        // Fermer tous les menus
+        closeAllTierMenus();
+
+        // Cacher les trois petits points pendant le screenshot
+        const triggers = Array.from(
+          document.querySelectorAll(".tier-menu-trigger")
+        );
+        const triggerPrevDisplays = triggers.map((btn) => btn.style.display);
+        triggers.forEach((btn) => {
+          btn.style.display = "none";
+        });
+
+        const maxDim = 16384;
+        const width = container.scrollWidth;
+        const height = container.scrollHeight;
+        let scale = 2;
+        scale = Math.min(scale, maxDim / width, maxDim / height);
+
+        try {
+          const canvas = await html2canvas(container, {
+            backgroundColor: "#111",
+            scrollY: -window.scrollY,
+            useCORS: true,
+            scale: scale,
+          });
+
+          const dataURL = canvas.toDataURL("image/png");
+          const a = document.createElement("a");
+          a.href = dataURL;
+          a.download = "tierlist_tiliochr.png";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        } catch (err) {
+          console.error(err);
+          alert(
+            "Impossible de générer le PNG (taille trop grande ou problème de CORS sur certaines images). Regarde la console pour plus de détails."
+          );
+        } finally {
+          // Réafficher UNRANKED
+          if (unrankedTier && unrankedTier.rowEl) {
+            unrankedTier.rowEl.style.display = unrankedPrevDisplay || "";
+          }
+
+          // Réafficher les trois petits points
+          triggers.forEach((btn, i) => {
+            btn.style.display = triggerPrevDisplays[i];
+          });
+
+          window.scrollTo(0, previousScrollY);
+        }
+      }
+
+      document
+        .getElementById("exportPngBtn")
+        .addEventListener("click", exportTierlistAsPng);
+    </script>
+  </body>
+</html>

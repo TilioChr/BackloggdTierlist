@@ -1,0 +1,85 @@
+(async function () {
+  const allGames = [];
+  const origin = location.origin;
+
+  function extractGamesFromDoc(doc) {
+    const games = [];
+
+    const cards = doc.querySelectorAll(
+      ".col-cus-5.col-md-cus-8.col-lg-cus-10.mt-2.px-1.rating-hover"
+    );
+
+    if (cards.length > 0) {
+      cards.forEach((card) => {
+        const img = card.querySelector(".card-img");
+        if (!img) return;
+
+        const title = (img.getAttribute("alt") || "").trim() || "Unknown";
+        const imgUrl = img.getAttribute("data-src") || img.getAttribute("src");
+        if (!imgUrl) return;
+
+        games.push({ title, cover_url: imgUrl });
+      });
+    } else {
+      doc.querySelectorAll("img.card-img, .game-cover img").forEach((img) => {
+        const title = (img.getAttribute("alt") || "").trim() || "Unknown";
+        const imgUrl = img.getAttribute("data-src") || img.getAttribute("src");
+        if (!imgUrl) return;
+
+        games.push({ title, cover_url: imgUrl });
+      });
+    }
+
+    return games;
+  }
+
+  async function scrapePage(url) {
+    console.log("🔎 Scraping :", url);
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) {
+      console.error("Erreur HTTP", res.status, "sur", url);
+      return;
+    }
+
+    const html = await res.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+
+    const games = extractGamesFromDoc(doc);
+    console.log(`➡️ ${games.length} jeux trouvés sur cette page.`);
+    allGames.push(...games);
+
+    const nextLink = doc.querySelector('a[aria-label="Next"]');
+    if (nextLink) {
+      const href = nextLink.getAttribute("href");
+      if (href) {
+        const nextUrl = new URL(href, origin).href;
+        await scrapePage(nextUrl);
+      }
+    } else {
+      console.log("✅ Pas de page suivante, fin du scraping.");
+    }
+  }
+
+  try {
+    await scrapePage(location.href);
+
+    console.log(`🎮 Total de jeux collectés : ${allGames.length}`);
+
+    const blob = new Blob([JSON.stringify(allGames, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "backloggd_played_covers_all.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    console.log("💾 Fichier backloggd_played_covers_all.json téléchargé ✅");
+  } catch (err) {
+    console.error("❌ Erreur pendant le scraping :", err);
+  }
+})();
